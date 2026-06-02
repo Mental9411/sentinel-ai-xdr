@@ -1,0 +1,124 @@
+version: "3.9"
+
+services:
+  mongodb:
+    image: mongo:7-jammy
+    container_name: sentinel-mongodb
+    environment:
+      MONGO_INITDB_DATABASE: ${MONGODB_DB:-sentinel_xdr}
+    volumes:
+      - mongodb_data:/data/db
+    ports:
+      - "27017:27017"
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - sentinel-net
+
+  redis:
+    image: redis:7-alpine
+    container_name: sentinel-redis
+    command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - sentinel-net
+
+  api:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.api
+    container_name: sentinel-api
+    env_file: .env
+    environment:
+      MONGODB_URL: mongodb://mongodb:27017
+      MONGODB_DB: ${MONGODB_DB:-sentinel_xdr}
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/1
+    ports:
+      - "8000:8000"
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app/backend
+      - capture_data:/var/lib/sentinel/captures
+      - model_data:/var/lib/sentinel/models
+    networks:
+      - sentinel-net
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    restart: unless-stopped
+
+  worker:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.worker
+    container_name: sentinel-worker
+    env_file: .env
+    environment:
+      MONGODB_URL: mongodb://mongodb:27017
+      MONGODB_DB: ${MONGODB_DB:-sentinel_xdr}
+      CELERY_BROKER_URL: redis://redis:6379/1
+    depends_on:
+      - api
+      - mongodb
+      - redis
+    volumes:
+      - ./backend:/app/backend
+    networks:
+      - sentinel-net
+    restart: unless-stopped
+
+  dashboard:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.dashboard
+    container_name: sentinel-dashboard
+    env_file: .env
+    environment:
+      API_BASE_URL: http://api:8000
+    ports:
+      - "8501:8501"
+    depends_on:
+      - api
+    networks:
+      - sentinel-net
+    restart: unless-stopped
+
+  nginx:
+    image: nginx:alpine
+    container_name: sentinel-nginx
+    ports:
+      - "80:80"
+    volumes:
+      - ./docker/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - api
+      - dashboard
+    networks:
+      - sentinel-net
+    restart: unless-stopped
+
+volumes:
+  mongodb_data:
+  redis_data:
+  capture_data:
+  model_data:
+
+networks:
+  sentinel-net:
+    driver: bridge

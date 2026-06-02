@@ -1,0 +1,16 @@
+[client]
+showSidebarNavigation = false
+
+[server]
+headless = true
+# Fixes Python 3.13 watchdog ThreadHandle errors and speeds up Streamlit
+fileWatcherType = "none"
+runOnSave = false
+enableCORS = false
+enableXsrfProtection = true
+
+[runner]
+fastReruns = true
+
+[browser]
+gatherUsageStats = false
