@@ -8,7 +8,12 @@ import sys
 from datetime import datetime
 
 import streamlit as st
-from streamlit_autorefresh import st_autorefresh
+try:
+    from streamlit_autorefresh import st_autorefresh
+except ModuleNotFoundError:
+    def st_autorefresh(*args, **kwargs):
+        """Fallback no-op when streamlit-autorefresh isn't installed."""
+        return None
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
