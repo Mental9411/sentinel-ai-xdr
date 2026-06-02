@@ -1,7 +1,11 @@
 # Streamlit Cloud dependencies (dashboard only)
 streamlit==1.40.2
-streamlit-autorefresh==1.0.1
-httpx==0.28.1
+streamlit-autorefresh
+httpx>=0.24.0
+requests
+pandas
+plotly
+# Add any other dependencies your app uses
 
 # Dashboard data and visualizations
 pandas==2.2.3
